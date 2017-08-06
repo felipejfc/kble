@@ -21,6 +21,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -28,12 +29,19 @@ import (
 	"time"
 
 	"github.com/felipejfc/kble/provider"
+	"github.com/felipejfc/kble/util"
+	"github.com/felipejfc/kble/watchers"
+	homedir "github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 var selectedProvider string
-var interval int
+var providerWatcherInterval int
+var nodeResyncInterval int
+var ifaceName string
+var kubeconfig string
+var incluster bool
 
 // startCmd represents the start command
 var startCmd = &cobra.Command{
@@ -41,28 +49,46 @@ var startCmd = &cobra.Command{
 	Short: "start starts kble",
 	Long:  `start starts kble`,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Infoln("starting kble...")
+		l := log.New()
+		l.Infoln("starting kble...")
 		if selectedProvider == "" {
-			log.Fatalf("no provider specified")
+			l.Fatalf("no provider specified")
 		}
 		p := provider.NewLayer2Provider()
-		watcher := provider.NewWatcher(p, time.Duration(interval)*time.Second)
-
+		providerWatcher := provider.NewWatcher(p, time.Duration(providerWatcherInterval)*time.Second)
 		ch := make(chan os.Signal)
 		defer close(ch)
 		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-
 		waitGroup := &sync.WaitGroup{}
 		waitGroup.Add(1)
-		go watcher.Run(waitGroup)
+		go providerWatcher.Run(waitGroup)
+
+		clientset, err := util.GetKubernetesClient(l, incluster, kubeconfig)
+		if err != nil {
+			l.Fatal("error getting kubernetes client: %s", err.Error())
+		}
+		nodeWatcher := watchers.NewNodeWatcher(clientset, time.Duration(nodeResyncInterval)*time.Second, l)
+		// TODO must send wg?
+		nodeWatcher.Start()
 		<-ch
-		watcher.Shutdown()
+		providerWatcher.Shutdown()
+		nodeWatcher.Stop()
+
 		waitGroup.Wait()
 	},
 }
 
 func init() {
+	// TODO debug flag
 	startCmd.Flags().StringVarP(&selectedProvider, "provider", "p", "", "")
-	startCmd.Flags().IntVarP(&interval, "watcher interval (s)", "t", 30, "")
+	startCmd.Flags().IntVarP(&providerWatcherInterval, "routes watcher interval (s)", "t", 30, "")
+	startCmd.Flags().IntVarP(&nodeResyncInterval, "node watcher resync interval (s)", "r", 30, "")
+	startCmd.Flags().StringVarP(&ifaceName, "network interface to use for packet transport", "i", "eth0", "")
+	home, err := homedir.Dir()
+	if err != nil {
+		panic(err)
+	}
+	startCmd.Flags().StringVar(&kubeconfig, "kubeconfig", fmt.Sprintf("%s/.kube/config", home), "path to the kubeconfig file (not needed if using --incluster)")
+	startCmd.Flags().BoolVar(&incluster, "incluster", false, "incluster mode (for running on kubernetes)")
 	RootCmd.AddCommand(startCmd)
 }
