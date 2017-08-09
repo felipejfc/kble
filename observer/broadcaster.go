@@ -18,31 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package provider
+package observer
 
-import (
-	"github.com/felipejfc/kble/observer"
-	log "github.com/sirupsen/logrus"
-)
+import "sync"
 
-//Layer2Provider struct
-type Layer2Provider struct {
+// Broadcaster struct
+type Broadcaster struct {
+	observersLock sync.RWMutex
+	observers     []Observer
 }
 
-// NewLayer2Provider ctor
-func NewLayer2Provider() *Layer2Provider {
-	return &Layer2Provider{}
+// NewBroadcaster ctor
+func NewBroadcaster() *Broadcaster {
+	return &Broadcaster{
+		observers: []Observer{},
+	}
 }
 
-// EnsureRoutes setup the routes
-func (l *Layer2Provider) EnsureRoutes() {
-	log.Infoln("layer2 provider ensuring routes")
+// Add adds a observer to the broadcaster
+func (b *Broadcaster) Add(observer Observer) {
+	b.observersLock.Lock()
+	defer b.observersLock.Unlock()
+	b.observers = append(b.observers, observer)
 }
 
-// OnUpdate receives a node update
-func (l *Layer2Provider) OnUpdate(nodeUpdate *observer.NodeUpdate) {
-	log.WithFields(log.Fields{
-		"node":      nodeUpdate.Node,
-		"operation": nodeUpdate.Op,
-	}).Debug("updating node")
+// Notify notifies all observers of the nodeUpdate
+func (b *Broadcaster) Notify(nodeUpdate *NodeUpdate) {
+	b.observersLock.RLock()
+	observers := b.observers
+	b.observersLock.RUnlock()
+	for _, observer := range observers {
+		go observer.OnUpdate(nodeUpdate)
+	}
 }

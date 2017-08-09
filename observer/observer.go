@@ -18,31 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package provider
+package observer
 
-import (
-	"github.com/felipejfc/kble/observer"
-	log "github.com/sirupsen/logrus"
+import api "k8s.io/client-go/pkg/api/v1"
+
+// NodeUpdate struct
+type NodeUpdate struct {
+	Node *api.Node
+	Op   Operation
+}
+
+// Operation type
+type Operation int
+
+const (
+	// ADD add event
+	ADD Operation = iota
+	// REMOVE remove event
+	REMOVE
 )
 
-//Layer2Provider struct
-type Layer2Provider struct {
-}
-
-// NewLayer2Provider ctor
-func NewLayer2Provider() *Layer2Provider {
-	return &Layer2Provider{}
-}
-
-// EnsureRoutes setup the routes
-func (l *Layer2Provider) EnsureRoutes() {
-	log.Infoln("layer2 provider ensuring routes")
-}
-
-// OnUpdate receives a node update
-func (l *Layer2Provider) OnUpdate(nodeUpdate *observer.NodeUpdate) {
-	log.WithFields(log.Fields{
-		"node":      nodeUpdate.Node,
-		"operation": nodeUpdate.Op,
-	}).Debug("updating node")
+// Observer iface
+type Observer interface {
+	OnUpdate(nodeUpdate *NodeUpdate)
 }

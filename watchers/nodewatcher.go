@@ -25,8 +25,10 @@ package watchers
 import (
 	"time"
 
+	"github.com/felipejfc/kble/observer"
 	"github.com/sirupsen/logrus"
 
+	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	api "k8s.io/client-go/pkg/api/v1"
@@ -41,10 +43,11 @@ type NodeWatcher struct {
 	resyncPeriod   time.Duration
 	log            logrus.FieldLogger
 	stopCh         chan struct{}
+	broadcaster    *observer.Broadcaster
 }
 
 // NewNodeWatcher ctor
-func NewNodeWatcher(clientset kubernetes.Interface, resyncPeriod time.Duration, log logrus.FieldLogger) *NodeWatcher {
+func NewNodeWatcher(clientset kubernetes.Interface, resyncPeriod time.Duration, broadcaster *observer.Broadcaster, log logrus.FieldLogger) *NodeWatcher {
 	l := log.WithFields(logrus.Fields{
 		"source": "nodeWatcher",
 	})
@@ -52,18 +55,36 @@ func NewNodeWatcher(clientset kubernetes.Interface, resyncPeriod time.Duration, 
 		clientset:    clientset,
 		resyncPeriod: resyncPeriod,
 		log:          l,
+		broadcaster:  broadcaster,
 	}
 }
 
 func (n *NodeWatcher) nodeAddEventHandler(obj interface{}) {
-	n.log.Infof("node add evt: %s", obj)
+	n.log.WithFields(log.Fields{
+		"node":  obj,
+		"event": "add",
+	}).Debug("node watcher event")
+	nodeUpdate := &observer.NodeUpdate{
+		Node: obj.(*api.Node),
+		Op:   observer.ADD,
+	}
+	n.broadcaster.Notify(nodeUpdate)
 }
 func (n *NodeWatcher) nodeDeleteEventHandler(obj interface{}) {
-	n.log.Infof("node delete evt: %s", obj)
+	n.log.WithFields(log.Fields{
+		"node":  obj,
+		"event": "delete",
+	}).Debug("node watcher event")
+	nodeUpdate := &observer.NodeUpdate{
+		Node: obj.(*api.Node),
+		Op:   observer.REMOVE,
+	}
+	n.broadcaster.Notify(nodeUpdate)
 
 }
 func (n *NodeWatcher) nodeUpdateEventHandler(oldObj, newObj interface{}) {
-	n.log.Infof("node update evt: %s, %s", oldObj, newObj)
+	// Not interested in updates
+	return
 }
 
 // List lists the nodes

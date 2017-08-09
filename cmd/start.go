@@ -28,6 +28,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/felipejfc/kble/observer"
 	"github.com/felipejfc/kble/provider"
 	"github.com/felipejfc/kble/util"
 	"github.com/felipejfc/kble/watchers"
@@ -54,7 +55,9 @@ var startCmd = &cobra.Command{
 		if selectedProvider == "" {
 			l.Fatalf("no provider specified")
 		}
+		b := observer.NewBroadcaster()
 		p := provider.NewLayer2Provider()
+		b.Add(p)
 		providerWatcher := provider.NewWatcher(p, time.Duration(providerWatcherInterval)*time.Second)
 		ch := make(chan os.Signal)
 		defer close(ch)
@@ -67,7 +70,7 @@ var startCmd = &cobra.Command{
 		if err != nil {
 			l.Fatal("error getting kubernetes client: %s", err.Error())
 		}
-		nodeWatcher := watchers.NewNodeWatcher(clientset, time.Duration(nodeResyncInterval)*time.Second, l)
+		nodeWatcher := watchers.NewNodeWatcher(clientset, time.Duration(nodeResyncInterval)*time.Second, b, l)
 		// TODO must send wg?
 		nodeWatcher.Start()
 		<-ch
