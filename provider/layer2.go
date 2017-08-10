@@ -23,26 +23,52 @@ package provider
 import (
 	"github.com/felipejfc/kble/observer"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/client-go/pkg/api/v1"
 )
 
 //Layer2Provider struct
 type Layer2Provider struct {
+	machineID string
 }
 
 // NewLayer2Provider ctor
-func NewLayer2Provider() *Layer2Provider {
-	return &Layer2Provider{}
+func NewLayer2Provider(machineID string) *Layer2Provider {
+	l := &Layer2Provider{
+		machineID: machineID,
+	}
+	return l
 }
 
-// EnsureRoutes setup the routes
+// EnsureRoutes check if routes are set for all nodes
 func (l *Layer2Provider) EnsureRoutes() {
-	log.Infoln("layer2 provider ensuring routes")
+
+}
+
+// AddRouteForNode setup the route for a node
+func (l *Layer2Provider) AddRouteForNode(node *v1.Node) {
+	cidr := node.Spec.PodCIDR
+	ll := log.WithFields(log.Fields{
+		"node":     node.Name,
+		"pod cidr": cidr,
+	})
+	if cidr == "" {
+		ll.Warn("node has no pod cidr")
+		return
+	}
+	if node.Status.NodeInfo.MachineID == l.machineID {
+		ll.Debug("not adding route as node is self")
+		return
+	}
+	ll.Info("layer2 provider ensuring routes for node")
 }
 
 // OnUpdate receives a node update
 func (l *Layer2Provider) OnUpdate(nodeUpdate *observer.NodeUpdate) {
+	node := nodeUpdate.Node
 	log.WithFields(log.Fields{
 		"node":      nodeUpdate.Node,
 		"operation": nodeUpdate.Op,
+		"pod cidr":  node.Spec.PodCIDR,
 	}).Debug("updating node")
+	l.AddRouteForNode(node)
 }

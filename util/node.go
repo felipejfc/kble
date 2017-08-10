@@ -18,12 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-package provider
+package util
 
-import "k8s.io/client-go/pkg/api/v1"
+import (
+	"io/ioutil"
+	"strings"
+)
 
-// Provider is the provider interface
-type Provider interface {
-	EnsureRoutes()
-	AddRouteForNode(node *v1.Node)
+// GetMachineID gets machine id as in node status
+func GetMachineID(path string) (string, error) {
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	machineID := string(b)
+	machineID = strings.TrimSpace(machineID)
+	return machineID, nil
 }

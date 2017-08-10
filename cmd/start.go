@@ -42,6 +42,7 @@ var providerWatcherInterval int
 var nodeResyncInterval int
 var ifaceName string
 var kubeconfig string
+var machineIDPath string
 var incluster bool
 
 // startCmd represents the start command
@@ -56,7 +57,11 @@ var startCmd = &cobra.Command{
 			l.Fatalf("no provider specified")
 		}
 		b := observer.NewBroadcaster()
-		p := provider.NewLayer2Provider()
+		machineID, err := util.GetMachineID(machineIDPath)
+		if err != nil {
+			l.Fatalf("error getting machine-id: %s", err.Error())
+		}
+		p := provider.NewLayer2Provider(machineID)
 		b.Add(p)
 		providerWatcher := provider.NewWatcher(p, time.Duration(providerWatcherInterval)*time.Second)
 		ch := make(chan os.Signal)
@@ -92,6 +97,7 @@ func init() {
 		panic(err)
 	}
 	startCmd.Flags().StringVar(&kubeconfig, "kubeconfig", fmt.Sprintf("%s/.kube/config", home), "path to the kubeconfig file (not needed if using --incluster)")
+	startCmd.Flags().StringVar(&machineIDPath, "machine-id", "/etc/machine-id", "path to the machine-id file (as in node status)")
 	startCmd.Flags().BoolVar(&incluster, "incluster", false, "incluster mode (for running on kubernetes)")
 	RootCmd.AddCommand(startCmd)
 }
